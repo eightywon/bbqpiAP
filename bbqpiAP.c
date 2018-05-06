@@ -11,15 +11,14 @@
 #define SOLID 2
 #define SLOW 350
 #define FAST 150
-#define TMR_BLINK 0
+#define IP_TIMEOUT 90
 
-//#include <pigpio.h>
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int pressedAt,isPressed,ledThread, buttonState;
+int pressedAt,ledThread,buttonState;
 
 struct Connection {
 	int mode;
@@ -34,18 +33,16 @@ struct Connection {
 struct Connection con;
 
 void checkState (int now) {
+	FILE *fp;
 	char res[100];
 	memset(res,0,strlen(res));
-	FILE *fp;
 	fp=popen("wpa_cli -i wlan0 status|grep 'ip_address'","r");
 	if (fp==NULL) {
 		printf("Failed to run command\n");
 	}
-
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
 	}
 	pclose(fp);
-
 	if (strlen(res)>0) {
 		strncpy(con.ip,res+11,15);
 		if (con.mode==AP || con.state==DOWN) {
@@ -64,10 +61,9 @@ void checkState (int now) {
 }
 
 void checkAP () {
-	printf("checking AP up?\n");
+	FILE *fp;
 	char res[100];
 	memset(res,0,strlen(res));
-	FILE *fp;
 	fp=popen("systemctl status hostapd |grep '(running)'","r");
 	if (fp==NULL) {
 		printf("Failed to run command\n");
@@ -76,7 +72,6 @@ void checkAP () {
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
 	}
 	pclose(fp);
-
 	if (strlen(res)>0) {
 		printf("AP is up!\n");
 		con.mode=AP;
@@ -97,7 +92,6 @@ void toggleMode() {
 		con.blinkSpeed=SLOW;
 		con.ledMode=BLINK;
 		system("/home/pi/killhotspot.sh");
-		printf("ap stopped\n");
 	} else if (con.mode==IP) {
 		printf("trying to start AP\n");
 		con.mode=AP;
@@ -107,7 +101,6 @@ void toggleMode() {
 		con.blinkSpeed=FAST;
 		system("/home/pi/hotspot.sh");
 	}
-	printf("toggled, m%d s%d\n",con.mode,con.state);
 }
 
 void readPin () {
@@ -117,11 +110,15 @@ void readPin () {
 
 PI_THREAD (driveLED) {
 	while(1) {
+		/*
 		if (con.color==RLED) {
 			digitalWrite(GLED,LOW);
 		} else {
 			digitalWrite(RLED,LOW);
 		}
+		*/
+		digitalWrite(RLED,LOW);
+		digitalWrite(GLED,LOW);
 		digitalWrite(con.color,HI);
 		delay(con.blinkSpeed);
 		if (con.ledMode==BLINK) {
@@ -148,24 +145,20 @@ int main (int arg,char **argv ) {
 
 	while (1) {
 		secs=millis()/1000;
-		printf("%d secs\n",secs);
 		if (buttonState==HI && secs-pressedAt>=2) {
 			pressedAt=0;
-			printf("toggling for button press\n");
 			toggleMode();
-		}
-
-		if (con.mode==IP) {
-			checkState(secs);
 		}
 
 		if (con.mode==IP && con.state==UP) {
 			con.color=GLED;
 			con.ledMode=SOLID;
 			printf("connected: %s (%d)",con.ip,secs);
+			checkState(secs);
 		} else if (con.mode==IP && con.state==DOWN) {
-			if (secs-con.since>=300) {
-				printf("no ip 300 seconds, going AP mode %d\n",secs);
+			if (secs-con.since>=IP_TIMEOUT) {
+				printf("no ip %d seconds, going AP mode %d\n",IP_TIMEOUT,secs);
+				con.since=secs;
 				toggleMode();
 			} else {
 				printf("no connection %d\n",secs);
@@ -173,6 +166,7 @@ int main (int arg,char **argv ) {
 				con.color=GLED;
 				con.ledMode=BLINK;
 			}
+			checkState(secs);
 		} else if (con.mode==AP && con.state==DOWN) {
 			con.blinkSpeed=FAST;
 			con.color=RLED;
