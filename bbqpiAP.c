@@ -6,11 +6,12 @@
 #define IP 1
 #define AP 2
 #define UP 1
-#define DOWN 0
+#define DOWN 2
 #define BLINK 0
 #define SOLID 1
 #define SLOW 350
 #define FAST 150
+#define TMR_BLINK 0
 
 #include <pigpio.h>
 #include <stdio.h>
@@ -18,7 +19,7 @@
 #include <string.h>
 
 int pressedAt,isPressed;
-FILE *fp;
+
 struct Connection {
 	int mode;
 	int state;
@@ -27,6 +28,7 @@ struct Connection {
 	int ledMode;
 	int onFor;
 	int offFor;
+	int color;
 };
 
 struct Connection con;
@@ -34,6 +36,7 @@ struct Connection con;
 void checkState (int now) {
 	char res[100];
 	memset(res,0,strlen(res));
+	FILE *fp;
 	fp=popen("wpa_cli -i wlan0 status|grep 'ip_address'","r");
 	if (fp==NULL) {
 		printf("Failed to run command\n");
@@ -57,30 +60,75 @@ void checkState (int now) {
 		}
 		con.state=DOWN;
 	}
+	fp=NULL;
 }
 
-void blinkLED (void) {
-	gpioWrite(RLED,HI);
+void blinkLED () {
+	gpioWrite(con.color,HI);
 	gpioDelay(con.onFor*1000);
-	gpioWrite(RLED,LOW);
+	gpioWrite(con.color,LOW);
+}
+
+void solidLED (int pin) {
+	gpioSetTimerFunc(TMR_BLINK,500,NULL);
+	gpioWrite(pin,HI);
+}
+
+void checkAP () {
+	printf("checking AP up?\n");
+	char res[100];
+	memset(res,0,strlen(res));
+	FILE *fp;
+	fp=popen("systemctl status hostapd |grep '(running)'","r");
+	if (fp==NULL) {
+		printf("Failed to run command\n");
+	}
+
+	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
+	}
+	pclose(fp);
+
+	if (strlen(res)>0) {
+		printf("AP is up!\n");
+		con.mode=AP;
+		con.state=UP;
+		con.color=RLED;
+		gpioSetTimerFunc(TMR_BLINK,con.onFor,NULL);
+		//gpioWrite(RLED,HI);
+		solidLED(con.color);
+		gpioSetTimerFunc(2,2000,NULL);
+	}
+	fp=NULL;
 }
 
 void toggleMode() {
 	printf("toggling, m%d s%d\n",con.mode,con.state);
 	if (con.mode==AP) {
-		printf("killing AP, going AP\n");
+		printf("killing AP, going IP\n");
 		con.mode=IP;
 		con.state=DOWN;
+		con.color=GLED;
+		con.onFor=SLOW;
+		con.offFor=SLOW;
+		gpioWrite(RLED,LOW);
+		//solidLED(con.color);
+		gpioSetTimerFunc(TMR_BLINK,con.offFor,blinkLED);
 		system("/home/pi/killhotspot.sh");
 		printf("ap stopped\n");
-		gpioSetTimerFunc(0,500,NULL);
+		//gpioSetTimerFunc(0,500,NULL);
 	} else if (con.mode==IP) {
 		printf("trying to start AP\n");
 		con.mode=AP;
 		con.state=DOWN;
+		con.color=RLED;
+		con.onFor=FAST;
+		con.offFor=FAST;
+		gpioWrite(GLED,LOW);
+		gpioSetTimerFunc(TMR_BLINK,con.offFor,blinkLED);
+		gpioSetTimerFunc(2,500,checkAP);
 		system("/home/pi/hotspot.sh");
-		printf("ap started\n");
-		gpioSetTimerFunc(0,500,NULL);
+		//printf("ap started\n");
+		//gpioSetTimerFunc(0,500,NULL);
 	}
 	printf("toggled, m%d s%d\n",con.mode,con.state);
 }
@@ -123,37 +171,48 @@ int main (int arg,char **argv ) {
         printf("Alert set on BCM PIN %d\n",BUTTON);
 
 	gpioSetMode(RLED,PI_OUTPUT);
-	FILE *fp;
+	gpioSetMode(GLED,PI_OUTPUT);
 
 	con.mode=IP;
 	con.state=DOWN;
 
 	while (1) {
 		gpioTime(PI_TIME_RELATIVE,&secs,&mics);
-
-		checkState(secs);
-
+		if (con.mode==IP) {
+			checkState(secs);
+		}
 		if (con.mode==IP && con.state==UP) {
-			gpioSetTimerFunc(0,500,NULL);
-			gpioWrite(RLED,HI);
+			gpioSetTimerFunc(TMR_BLINK,500,NULL);
+			//gpioWrite(GLED,HI);
+			con.color=GLED;
+			solidLED(con.color);
+			gpioWrite(RLED,LOW);
 			printf("connected: %s (%d)",con.ip,secs);
-			gpioDelay(700000);
+			//gpioDelay(700000);
 		} else if (con.mode==IP && con.state==DOWN) {
 			if (secs-con.since>=300) {
 				printf("no ip 300 seconds, going AP mode %d\n",secs);
-				gpioWrite(RLED,LOW);
+				//gpioWrite(RLED,LOW);
+				//gpioWrite(GLED,HI);
+				//solidLED(con.color);
 				toggleMode();
 			} else {
 				printf("no connection %d\n",secs);
 				con.onFor=SLOW;
 				con.offFor=SLOW;
-				gpioSetTimerFunc(0,con.offFor,blinkLED);
+				con.color=GLED;
+				gpioSetTimerFunc(TMR_BLINK,con.offFor,blinkLED);
 			}
 		} else if (con.mode==AP && con.state==DOWN) {
 			printf("setting up AP %d\n",secs);
 			con.onFor=FAST;
 			con.offFor=FAST;
-			gpioSetTimerFunc(0,con.offFor,blinkLED);
+			con.color=RLED;
+			gpioSetTimerFunc(TMR_BLINK,con.offFor,blinkLED);
+		} else if (con.mode==AP && con.state==UP) {
+			gpioSetTimerFunc(TMR_BLINK,con.offFor,NULL);
+			con.color=RLED;
+			solidLED(con.color);
 		}
 		fflush(stdout);
 		gpioDelay(1000000);
