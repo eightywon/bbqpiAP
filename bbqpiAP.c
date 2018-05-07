@@ -82,23 +82,25 @@ void checkAP () {
 	fp=NULL;
 }
 
-void toggleMode() {
+void toggleMode(int now) {
 	printf("toggling, m%d s%d\n",con.mode,con.state);
 	if (con.mode==AP) {
 		printf("killing AP, going IP\n");
-		con.mode=IP;
-		con.state=DOWN;
-		con.color=GLED;
 		con.blinkSpeed=SLOW;
 		con.ledMode=BLINK;
+		con.color=GLED;
+		con.mode=IP;
+		con.state=DOWN;
+		con.since=now;
 		system("/home/pi/killhotspot.sh");
 	} else if (con.mode==IP) {
 		printf("trying to start AP\n");
+		con.blinkSpeed=FAST;
+		con.ledMode=BLINK;
+		con.color=RLED;
 		con.mode=AP;
 		con.state=DOWN;
-		con.color=RLED;
-		con.ledMode=BLINK;
-		con.blinkSpeed=FAST;
+		con.since=now;
 		system("/home/pi/hotspot.sh");
 	}
 }
@@ -110,13 +112,6 @@ void readPin () {
 
 PI_THREAD (driveLED) {
 	while(1) {
-		/*
-		if (con.color==RLED) {
-			digitalWrite(GLED,LOW);
-		} else {
-			digitalWrite(RLED,LOW);
-		}
-		*/
 		digitalWrite(RLED,LOW);
 		digitalWrite(GLED,LOW);
 		digitalWrite(con.color,HI);
@@ -129,7 +124,6 @@ PI_THREAD (driveLED) {
 }
 
 int main (int arg,char **argv ) {
-
 	int secs;
 	wiringPiSetupGpio();
 	pinMode(BUTTON,INPUT);
@@ -147,9 +141,8 @@ int main (int arg,char **argv ) {
 		secs=millis()/1000;
 		if (buttonState==HI && secs-pressedAt>=2) {
 			pressedAt=0;
-			toggleMode();
+			toggleMode(secs);
 		}
-
 		if (con.mode==IP && con.state==UP) {
 			con.color=GLED;
 			con.ledMode=SOLID;
@@ -159,7 +152,7 @@ int main (int arg,char **argv ) {
 			if (secs-con.since>=IP_TIMEOUT) {
 				printf("no ip %d seconds, going AP mode %d\n",IP_TIMEOUT,secs);
 				con.since=secs;
-				toggleMode();
+				toggleMode(secs);
 			} else {
 				printf("no connection %d\n",secs);
 				con.blinkSpeed=SLOW;
