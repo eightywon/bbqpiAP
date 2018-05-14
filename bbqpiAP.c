@@ -5,6 +5,8 @@
 #define LOW 0
 #define IP 1
 #define AP 2
+#define SHUTTING_DOWN 3
+#define SHUTDOWN 4
 #define UP 1
 #define DOWN 2
 #define BLINK 1
@@ -12,13 +14,15 @@
 #define SLOW 350
 #define FAST 150
 #define IP_TIMEOUT 90
+#define HOLD_FOR_SHUTDOWN 7
+#define HOLD_FOR_TOGGLE 2
 
 #include <wiringPi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-int pressedAt,ledThread,buttonState;
+int pressedAt,ledThread,buttonState,okToToggle=1;
 
 struct Connection {
 	int mode;
@@ -95,7 +99,7 @@ void toggleMode(int now) {
 		system("/home/pi/killhotspot.sh");
 	} else if (con.mode==IP) {
 		printf("trying to start AP\n");
-		con.blinkSpeed=FAST;
+		con.blinkSpeed=SLOW;
 		con.ledMode=BLINK;
 		con.color=RLED;
 		con.mode=AP;
@@ -108,10 +112,13 @@ void toggleMode(int now) {
 void readPin () {
 	buttonState=digitalRead(BUTTON);
 	pressedAt=millis()/1000;
+	if (buttonState==LOW) {
+		okToToggle=1;
+	}
 }
 
 PI_THREAD (driveLED) {
-	while(1) {
+	while(con.mode!=SHUTDOWN) {
 		digitalWrite(RLED,LOW);
 		digitalWrite(GLED,LOW);
 		digitalWrite(con.color,HI);
@@ -139,10 +146,21 @@ int main (int arg,char **argv ) {
 
 	while (1) {
 		secs=millis()/1000;
-		if (buttonState==HI && secs-pressedAt>=2) {
-			pressedAt=0;
+		if (buttonState==HI && secs-pressedAt>=HOLD_FOR_SHUTDOWN) {
+			con.mode=SHUTTING_DOWN;
+			con.blinkSpeed=FAST;
+			con.ledMode=BLINK;
+			con.color=RLED;
+			delay(5000);
+			con.mode=SHUTDOWN;
+			digitalWrite(RLED,LOW);
+			digitalWrite(GLED,LOW);
+			system("/home/pi/shutdown.sh");
+		} else if (buttonState==HI && secs-pressedAt>=HOLD_FOR_TOGGLE && okToToggle==1) {
+			okToToggle=0;
 			toggleMode(secs);
 		}
+
 		if (con.mode==IP && con.state==UP) {
 			con.color=GLED;
 			con.ledMode=SOLID;
@@ -161,7 +179,7 @@ int main (int arg,char **argv ) {
 			}
 			checkState(secs);
 		} else if (con.mode==AP && con.state==DOWN) {
-			con.blinkSpeed=FAST;
+			con.blinkSpeed=SLOW;
 			con.color=RLED;
 			con.ledMode=BLINK;
 			checkAP();
