@@ -23,6 +23,7 @@
 #include <string.h>
 
 int pressedAt,ledThread,buttonState,okToToggle=1;
+char devName[16];
 
 struct Connection {
 	int mode;
@@ -35,6 +36,19 @@ struct Connection {
 };
 
 struct Connection con;
+
+void getDevName(void) {
+	FILE *fp;
+	fp=popen("iw dev | awk '$1==\"Interface\"{print $2}' ","r");
+	if (fp==NULL) {
+		printf("Failed to run command\n");
+	}
+	while (fgets(devName,sizeof(devName)-1,fp)!=NULL) {
+	}
+	pclose(fp);
+	printf("dev name is %s\n",devName);
+	//handle failing to get wlan device name here
+}
 
 void checkState (int now) {
 	FILE *fp;
@@ -87,6 +101,7 @@ void checkAP () {
 }
 
 void toggleMode(int now) {
+	char buff[100];
 	printf("toggling, m%d s%d\n",con.mode,con.state);
 	if (con.mode==AP) {
 		printf("killing AP, going IP\n");
@@ -96,7 +111,8 @@ void toggleMode(int now) {
 		con.mode=IP;
 		con.state=DOWN;
 		con.since=now;
-		system("/home/pi/killhotspot.sh");
+		sprintf(buff,"/home/pi/killhotspot.sh %s",devName);
+		system(buff);
 	} else if (con.mode==IP) {
 		printf("trying to start AP\n");
 		con.blinkSpeed=SLOW;
@@ -105,7 +121,9 @@ void toggleMode(int now) {
 		con.mode=AP;
 		con.state=DOWN;
 		con.since=now;
-		system("/home/pi/hotspot.sh");
+		sprintf(buff,"/home/pi/hotspot.sh %s",devName);
+		system(buff);
+		//system("/home/pi/hotspot.sh");
 	}
 }
 
@@ -142,6 +160,7 @@ int main (int arg,char **argv ) {
 	con.color=GLED;
 	con.ledMode=BLINK;
 	con.blinkSpeed=SLOW;
+	getDevName();
 	ledThread=piThreadCreate (driveLED);
 
 	while (1) {
