@@ -1,6 +1,6 @@
-#define RLED 23 //physical pin 16, red LED
-#define GLED 25 //physical pin 22, green LED
-#define BUTTON 24 //physical pin 18, spst switch
+#define RLED 17 //physical pin 11, red LED
+#define GLED 27 //physical pin 13, green LED
+#define BUTTON 22 //physical pin 15, spst switch
 #define HI 1
 #define LOW 0
 #define IP 1
