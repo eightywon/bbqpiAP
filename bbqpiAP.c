@@ -21,9 +21,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sqlite3.h>
+#include <time.h>
+sqlite3 *db;
 
-int pressedAt,ledThread,buttonState,okToToggle=1;
-char devName[16];
+int pressedAt,ledThread,buttonState,okToToggle=1,rc;
+char devName[16], *zErrMsg=0;
 
 struct Connection {
 	int mode;
@@ -35,7 +38,23 @@ struct Connection {
 	int color;
 };
 
+struct AccessPoint {
+	char bssid[18];
+	char freq[10];
+	char signal[10];
+	char flags[200];
+	char ssid[33];
+};
+
 struct Connection con;
+struct AccessPoint ap[1000];
+
+static int callback(void *data, int argc, char **argv, char **colName) {
+        int i;
+        for(i=0; i<argc; i++) {
+        }
+        return 0;
+}
 
 void getDevName(void) {
 	FILE *fp;
@@ -97,6 +116,96 @@ void checkAP () {
 		con.color=RLED;
 		con.ledMode=SOLID;
 	}
+	fp=NULL;
+}
+
+void updateNetworks (unsigned int idx) {
+	sqlite3_stmt *stmt;
+	char sql[100];
+	sprintf(sql,"select * from networks where ssid='%s';",ap[idx].ssid);
+	printf("the sql is: %s\n",sql);
+	sqlite3_prepare_v2(db,sql,-1,&stmt,NULL);
+	int i=0;
+	int num_cols=0;
+	while (sqlite3_step(stmt) != SQLITE_DONE) {
+		num_cols=sqlite3_column_count(stmt);
+		for (i = 0; i < num_cols; i++) {
+		}
+	}
+	time_t now=time(NULL);
+	char buff[20];
+	strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
+	if (i!=0) {
+		printf("'%s' already in database, updating last",ap[idx].ssid);
+		snprintf(sql,100,"update networks set last='%s',signal='%s'",buff,ap[idx].signal);
+		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
+		if (rc!=SQLITE_OK) {
+			printf("update SQL error: %s\n",zErrMsg);
+		}
+	} else {
+		snprintf(sql,100,"insert into networks (ssid,signal,last,secure) values ('%s','%s','%s',%d);",ap[idx].ssid,ap[idx].signal,buff,1);
+		//printf("insert sql is '%s'",sql);
+		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
+		if (rc!=SQLITE_OK) {
+			printf("insert SQL error: %s\n",zErrMsg);
+		}
+	}
+}
+
+void checkWifi () {
+	FILE *fp;
+	char res[300], buff[100];
+	memset(res,0,strlen(res));
+	memset(buff,0,strlen(buff));
+	sprintf(buff,"wpa_cli scan -i %s",devName);
+	fp=popen(buff,"r");
+	if (fp==NULL) {
+		printf("Failed to run command\n");
+	}
+
+	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
+	}
+	pclose(fp);
+
+	memset(res,0,strlen(res));
+	memset(buff,0,strlen(buff));
+	sprintf(buff,"wpa_cli scan_results -i %s",devName);
+	fp=popen(buff,"r");
+	if (fp==NULL) {
+		printf("Failed to run command\n");
+	}
+
+	unsigned int count=0;
+	fgets(res,sizeof(res)-1,fp);
+
+	for (int i=0;i<1000;i++) {
+		memset(ap[i].bssid,0,strlen(ap[i].bssid));
+		memset(ap[i].freq,0,strlen(ap[i].freq));
+		memset(ap[i].signal,0,strlen(ap[i].signal));
+		memset(ap[i].flags,0,strlen(ap[i].flags));
+		memset(ap[i].ssid,0,strlen(ap[i].ssid));
+	}
+
+	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
+		printf("res is %s\n",res);
+		char ssids[33][5];
+		for (int i=0;i<=4;i++) {
+			memset(ssids[i],0,strlen(ssids[i]));
+		}
+		sscanf(res,"%s%s%s%s%s%s%s%s%s%s",ap[count].bssid,ap[count].freq,ap[count].signal,ap[count].flags,
+		       ap[count].ssid,ssids[0],ssids[1],ssids[2],ssids[3],ssids[4]);
+		printf("ssid is %s\nssids0 is %s\nssids1 is %s\nssids2 is %s\nssids3 is %s\nssids4 is %s\n",ap[count].ssid,ssids[0],ssids[1],ssids[2],ssids[3],ssids[4]);
+		for (int i=0;i<=4;i++) {
+			if (strlen(ssids[i])>0) {
+				strcat(ap[count].ssid," ");
+				strcat(ap[count].ssid,ssids[i]);
+			}
+		}
+		printf("\nssid: %s\tsignal: %s\t flags: %s\n",ap[count].ssid,ap[count].signal,ap[count].flags);
+		updateNetworks(count);
+		count++;
+	}
+	pclose(fp);
 	fp=NULL;
 }
 
@@ -163,6 +272,13 @@ int main (int arg,char **argv ) {
 	getDevName();
 	ledThread=piThreadCreate (driveLED);
 
+        rc=sqlite3_open("/var/www/html/the.db",&db);
+        if (rc!=SQLITE_OK) {
+                printf("Can't open db: %s\n",sqlite3_errmsg(db));
+        } else  {
+                printf("db opened\n");
+        }
+
 	while (1) {
 		secs=millis()/1000;
 		if (buttonState==HI && secs-pressedAt>=HOLD_FOR_SHUTDOWN) {
@@ -205,6 +321,10 @@ int main (int arg,char **argv ) {
 		} else if (con.mode==AP && con.state==UP) {
 			con.ledMode=SOLID;
 			con.color=RLED;
+		}
+
+		if (secs%5==0) {
+			checkWifi();
 		}
 		fflush(stdout);
 		delay(1000);
