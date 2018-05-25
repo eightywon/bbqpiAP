@@ -16,6 +16,7 @@
 #define IP_TIMEOUT 90
 #define HOLD_FOR_SHUTDOWN 7
 #define HOLD_FOR_TOGGLE 2
+#define WIFI_SCAN 30
 
 #include <wiringPi.h>
 #include <stdio.h>
@@ -137,7 +138,7 @@ void updateNetworks (unsigned int idx) {
 	strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
 	if (i!=0) {
 		printf("'%s' already in database, updating last",ap[idx].ssid);
-		snprintf(sql,100,"update networks set last='%s',signal='%s'",buff,ap[idx].signal);
+		snprintf(sql,100,"update networks set last='%s',signal='%s' where ssid='%s'",buff,ap[idx].signal,ap[idx].ssid);
 		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
 		if (rc!=SQLITE_OK) {
 			printf("update SQL error: %s\n",zErrMsg);
@@ -194,7 +195,7 @@ void checkWifi () {
 		}
 		sscanf(res,"%s%s%s%s%s%s%s%s%s%s",ap[count].bssid,ap[count].freq,ap[count].signal,ap[count].flags,
 		       ap[count].ssid,ssids[0],ssids[1],ssids[2],ssids[3],ssids[4]);
-		printf("ssid is %s\nssids0 is %s\nssids1 is %s\nssids2 is %s\nssids3 is %s\nssids4 is %s\n",ap[count].ssid,ssids[0],ssids[1],ssids[2],ssids[3],ssids[4]);
+		//printf("ssid is %s\nssids0 is %s\nssids1 is %s\nssids2 is %s\nssids3 is %s\nssids4 is %s\n",ap[count].ssid,ssids[0],ssids[1],ssids[2],ssids[3],ssids[4]);
 		for (int i=0;i<=4;i++) {
 			if (strlen(ssids[i])>0) {
 				strcat(ap[count].ssid," ");
@@ -323,9 +324,10 @@ int main (int arg,char **argv ) {
 			con.color=RLED;
 		}
 
-		if (secs%5==0) {
+		if (secs%WIFI_SCAN==0) {
 			checkWifi();
 		}
+
 		fflush(stdout);
 		delay(1000);
 	}
