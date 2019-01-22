@@ -24,6 +24,8 @@
 #include <string.h>
 #include <sqlite3.h>
 #include <time.h>
+#include <iwlib.h>
+
 sqlite3 *db;
 
 int pressedAt,ledThread,buttonState,okToToggle=1,rc;
@@ -210,6 +212,29 @@ void checkWifi () {
 	fp=NULL;
 }
 
+void iwScan(void) {
+	wireless_scan_head head;
+	wireless_scan *result;
+	iwrange range;
+	int sock;
+	sock=iw_sockets_open();
+	if (iw_get_range_info(sock,"wlan0",&range)<0) {
+		printf("Error during iw_get_range_info.\n");
+	} else {
+		if (iw_scan(sock,"wlan0",range.we_version_compiled,&head)<0) {
+			printf("Error during iw_scan.\n");
+			fprintf(stdout, "iw_scan: %s\n", strerror(errno));
+		} else {
+			result=head.result;
+			while (NULL!=result) {
+				printf("iw_scan ssid: %s\n",result->b.essid);
+				//printf("iw_scan sig: %s\n",result->stats.qual);
+				result=result->next;
+			}
+		}
+	}
+}
+
 void toggleMode(int now) {
 	char buff[100];
 	printf("toggling, m%d s%d\n",con.mode,con.state);
@@ -326,6 +351,10 @@ int main (int arg,char **argv ) {
 
 		if (secs%WIFI_SCAN==0) {
 			checkWifi();
+		}
+
+		if (secs%25==0) {
+			iwScan();
 		}
 
 		fflush(stdout);
