@@ -60,6 +60,9 @@ static int callback(void *data, int argc, char **argv, char **colName) {
 }
 
 void getDevName(void) {
+	printf("in getDevName\n");
+	fflush(stdout);
+
 	FILE *fp;
 	fp=popen("iw dev | awk '$1==\"Interface\"{print $2}' ","r");
 	if (fp==NULL) {
@@ -69,10 +72,15 @@ void getDevName(void) {
 	}
 	pclose(fp);
 	printf("dev name is %s\n",devName);
+	fflush(stdout);
+
 	//handle failing to get wlan device name here
 }
 
 void checkState (int now) {
+	printf("in checkState\n");
+	fflush(stdout);
+
 	FILE *fp;
 	char res[100];
 	memset(res,0,strlen(res));
@@ -98,9 +106,14 @@ void checkState (int now) {
 		con.state=DOWN;
 	}
 	fp=NULL;
+	printf("done checkState\n");
+	fflush(stdout);
 }
 
 void checkAP () {
+	printf("in checkAP\n");
+	fflush(stdout);
+
 	FILE *fp;
 	char res[100];
 	memset(res,0,strlen(res));
@@ -120,9 +133,14 @@ void checkAP () {
 		con.ledMode=SOLID;
 	}
 	fp=NULL;
+	printf("done checkAP\n");
+	fflush(stdout);
 }
 
 void updateNetworks (unsigned int idx) {
+	printf("in updateNetworks\n");
+	fflush(stdout);
+
 	sqlite3_stmt *stmt;
 	char sql[100];
 	sprintf(sql,"select * from networks where ssid='%s';",ap[idx].ssid);
@@ -153,9 +171,14 @@ void updateNetworks (unsigned int idx) {
 			printf("insert SQL error: %s\n",zErrMsg);
 		}
 	}
+	printf("done updateNetworks\n");
+	fflush(stdout);
 }
 
 void checkWifi () {
+	printf("in checkWifi\n");
+	fflush(stdout);
+
 	FILE *fp;
 	char res[300], buff[100];
 	memset(res,0,strlen(res));
@@ -165,10 +188,14 @@ void checkWifi () {
 	if (fp==NULL) {
 		printf("Failed to run command\n");
 	}
+	printf("wpa_cli scan done\n");
+	fflush(stdout);
 
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
 	}
 	pclose(fp);
+	printf("fgets while done\n");
+	fflush(stdout);
 
 	memset(res,0,strlen(res));
 	memset(buff,0,strlen(buff));
@@ -177,6 +204,8 @@ void checkWifi () {
 	if (fp==NULL) {
 		printf("Failed to run command\n");
 	}
+	printf("wpa_cli results done\n");
+	fflush(stdout);
 
 	unsigned int count=0;
 	fgets(res,sizeof(res)-1,fp);
@@ -189,7 +218,13 @@ void checkWifi () {
 		memset(ap[i].ssid,0,strlen(ap[i].ssid));
 	}
 
+	printf("memset done\n");
+	fflush(stdout);
+
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
+		printf("in fgets while\n");
+		fflush(stdout);
+
 		printf("res is %s\n",res);
 		char ssids[33][5];
 		for (int i=0;i<=4;i++) {
@@ -205,14 +240,29 @@ void checkWifi () {
 			}
 		}
 		printf("\nssid: %s\tsignal: %s\t flags: %s\n",ap[count].ssid,ap[count].signal,ap[count].flags);
-		updateNetworks(count);
+
+		//here we're skipping updateNetworks if the SSID isn't being broadcasted
+		if (ap[count].ssid[0]=='\\' &&
+                    ap[count].ssid[1]=='x' &&
+                    ap[count].ssid[2]=='0' &&
+                    ap[count].ssid[2]=='0') {
+			printf("bad ssid: %s\n",ap[count].ssid);
+			fflush(stdout);
+		} else {
+			updateNetworks(count);
+		}
 		count++;
 	}
 	pclose(fp);
 	fp=NULL;
+	printf("done checkWifi\n");
+	fflush(stdout);
 }
 
 void iwScan(void) {
+	printf("in iwScan\n");
+	fflush(stdout);
+
 	wireless_scan_head head;
 	wireless_scan *result;
 	iwrange range;
@@ -233,9 +283,15 @@ void iwScan(void) {
 			}
 		}
 	}
+	printf("done iwScan\n");
+	fflush(stdout);
+
 }
 
 void toggleMode(int now) {
+	printf("in toggleMode\n");
+	fflush(stdout);
+
 	char buff[100];
 	printf("toggling, m%d s%d\n",con.mode,con.state);
 	if (con.mode==AP) {
@@ -260,6 +316,8 @@ void toggleMode(int now) {
 		system(buff);
 		//system("/home/pi/hotspot.sh");
 	}
+	printf("done toggleMode\n");
+	fflush(stdout);
 }
 
 void readPin () {
@@ -308,6 +366,7 @@ int main (int arg,char **argv ) {
 	while (1) {
 		secs=millis()/1000;
 		if (buttonState==HI && secs-pressedAt>=HOLD_FOR_SHUTDOWN) {
+			printf("Shutting down...\n");
 			con.mode=SHUTTING_DOWN;
 			con.blinkSpeed=FAST;
 			con.ledMode=BLINK;
