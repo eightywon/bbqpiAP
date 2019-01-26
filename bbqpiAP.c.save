@@ -361,18 +361,6 @@ int main (int arg,char **argv ) {
                 printf("Can't open db: %s\n",sqlite3_errmsg(db));
         } else  {
                 printf("db opened\n");
-		sqlite3_stmt *stmt;
-		char sql[100];
-		sprintf(sql,"delete from networks;");
-		printf("the sql is: %s\n",sql);
-		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
-		if (rc!=SQLITE_OK) {
-			printf("update SQL error: %s\n",zErrMsg);
-			fflush(stdout);
-		} else {
-			printf("cleared networks table\n");
-			fflush(stdout);
-		}
         }
 
 	while (1) {
