@@ -60,8 +60,8 @@ static int callback(void *data, int argc, char **argv, char **colName) {
 }
 
 void getDevName(void) {
-	printf("in getDevName\n");
-	fflush(stdout);
+	//printf("in getDevName\n");
+	//fflush(stdout);
 
 	FILE *fp;
 	fp=popen("iw dev | awk '$1==\"Interface\"{print $2}' ","r");
@@ -78,8 +78,8 @@ void getDevName(void) {
 }
 
 void checkState (int now) {
-	printf("in checkState\n");
-	fflush(stdout);
+	//printf("in checkState\n");
+	//fflush(stdout);
 
 	FILE *fp;
 	char res[100];
@@ -106,13 +106,13 @@ void checkState (int now) {
 		con.state=DOWN;
 	}
 	fp=NULL;
-	printf("done checkState\n");
-	fflush(stdout);
+	//printf("done checkState\n");
+	//fflush(stdout);
 }
 
 void checkAP () {
-	printf("in checkAP\n");
-	fflush(stdout);
+	//printf("in checkAP\n");
+	//fflush(stdout);
 
 	FILE *fp;
 	char res[100];
@@ -133,16 +133,16 @@ void checkAP () {
 		con.ledMode=SOLID;
 	}
 	fp=NULL;
-	printf("done checkAP\n");
-	fflush(stdout);
+	//printf("done checkAP\n");
+	//fflush(stdout);
 }
 
 void updateNetworks (unsigned int idx) {
-	printf("in updateNetworks\n");
-	fflush(stdout);
+	//printf("in updateNetworks\n");
+	//fflush(stdout);
 
 	sqlite3_stmt *stmt;
-	char sql[100];
+	char sql[200];
 	sprintf(sql,"select * from networks where ssid='%s';",ap[idx].ssid);
 	printf("the sql is: %s\n",sql);
 	sqlite3_prepare_v2(db,sql,-1,&stmt,NULL);
@@ -157,27 +157,30 @@ void updateNetworks (unsigned int idx) {
 	char buff[20];
 	strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
 	if (i!=0) {
-		printf("'%s' already in database, updating last",ap[idx].ssid);
-		snprintf(sql,100,"update networks set last='%s',signal='%s' where ssid='%s'",buff,ap[idx].signal,ap[idx].ssid);
+		printf("'%s' already in database, updating last\n",ap[idx].ssid);
+		snprintf(sql,200,"update networks set last='%s',signal='%s' where ssid='%s'",buff,ap[idx].signal,ap[idx].ssid);
+		printf("the sql is: %s\n",sql);
+		fflush(stdout);
 		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
 		if (rc!=SQLITE_OK) {
 			printf("update SQL error: %s\n",zErrMsg);
 		}
 	} else {
-		snprintf(sql,100,"insert into networks (ssid,signal,last,secure) values ('%s','%s','%s',%d);",ap[idx].ssid,ap[idx].signal,buff,1);
-		//printf("insert sql is '%s'",sql);
+		snprintf(sql,200,"insert into networks (ssid,signal,last,secure) values ('%s','%s','%s',%d);",ap[idx].ssid,ap[idx].signal,buff,1);
+		printf("insert sql is '%s'\n",sql);
+		fflush(stdout);
 		rc=sqlite3_exec(db,sql,callback,0,&zErrMsg);
 		if (rc!=SQLITE_OK) {
 			printf("insert SQL error: %s\n",zErrMsg);
 		}
 	}
-	printf("done updateNetworks\n");
-	fflush(stdout);
+	//printf("done updateNetworks\n");
+	//fflush(stdout);
 }
 
 void checkWifi () {
-	printf("in checkWifi\n");
-	fflush(stdout);
+	//printf("in checkWifi\n");
+	//fflush(stdout);
 
 	FILE *fp;
 	char res[300], buff[100];
@@ -188,14 +191,14 @@ void checkWifi () {
 	if (fp==NULL) {
 		printf("Failed to run command\n");
 	}
-	printf("wpa_cli scan done\n");
-	fflush(stdout);
+	//printf("wpa_cli scan done\n");
+	//fflush(stdout);
 
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
 	}
 	pclose(fp);
-	printf("fgets while done\n");
-	fflush(stdout);
+	//printf("fgets while done\n");
+	//fflush(stdout);
 
 	memset(res,0,strlen(res));
 	memset(buff,0,strlen(buff));
@@ -204,8 +207,8 @@ void checkWifi () {
 	if (fp==NULL) {
 		printf("Failed to run command\n");
 	}
-	printf("wpa_cli results done\n");
-	fflush(stdout);
+	//printf("wpa_cli results done\n");
+	//fflush(stdout);
 
 	unsigned int count=0;
 	fgets(res,sizeof(res)-1,fp);
@@ -218,12 +221,12 @@ void checkWifi () {
 		memset(ap[i].ssid,0,strlen(ap[i].ssid));
 	}
 
-	printf("memset done\n");
-	fflush(stdout);
+	//printf("memset done\n");
+	//fflush(stdout);
 
 	while (fgets(res,sizeof(res)-1,fp)!=NULL) {
-		printf("in fgets while\n");
-		fflush(stdout);
+		//printf("in fgets while\n");
+		//fflush(stdout);
 
 		printf("res is %s\n",res);
 		char ssids[33][5];
@@ -255,13 +258,13 @@ void checkWifi () {
 	}
 	pclose(fp);
 	fp=NULL;
-	printf("done checkWifi\n");
-	fflush(stdout);
+	//printf("done checkWifi\n");
+	//fflush(stdout);
 }
 
 void iwScan(void) {
-	printf("in iwScan\n");
-	fflush(stdout);
+	//printf("in iwScan\n");
+	//fflush(stdout);
 
 	wireless_scan_head head;
 	wireless_scan *result;
@@ -283,14 +286,14 @@ void iwScan(void) {
 			}
 		}
 	}
-	printf("done iwScan\n");
-	fflush(stdout);
+	//printf("done iwScan\n");
+	//fflush(stdout);
 
 }
 
 void toggleMode(int now) {
-	printf("in toggleMode\n");
-	fflush(stdout);
+	//printf("in toggleMode\n");
+	//fflush(stdout);
 
 	char buff[100];
 	printf("toggling, m%d s%d\n",con.mode,con.state);
@@ -316,8 +319,8 @@ void toggleMode(int now) {
 		system(buff);
 		//system("/home/pi/hotspot.sh");
 	}
-	printf("done toggleMode\n");
-	fflush(stdout);
+	//printf("done toggleMode\n");
+	//fflush(stdout);
 }
 
 void readPin () {
