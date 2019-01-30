@@ -1,4 +1,4 @@
-#define BLED 17 //physical pin 11, red LED
+#define BLED 17 //physical pin 11, blue LED
 #define GLED 27 //physical pin 13, green LED
 #define BUTTON 22 //physical pin 15, spst switch
 #define HI 1
@@ -335,25 +335,11 @@ PI_THREAD (driveLED) {
 	while(con.mode!=SHUTDOWN) {
 		digitalWrite(BLED,LOW);
 		digitalWrite(GLED,LOW);
-		if (con.mode!=SHUTTING_DOWN) {
-			digitalWrite(con.color,HI);
+		digitalWrite(con.color,HI);
+		delay(con.blinkSpeed);
+		if (con.ledMode==BLINK) {
+			digitalWrite(con.color,LOW);
 			delay(con.blinkSpeed);
-			if (con.ledMode==BLINK) {
-				digitalWrite(con.color,LOW);
-				delay(con.blinkSpeed);
-			}
-		} else {
-			if (con.color==BLED) {
-				con.color=GLED;
-			} else {
-				con.color=BLED;
-			}
-			digitalWrite(con.color,HI);
-			delay(con.blinkSpeed);
-			if (con.ledMode==BLINK) {
-				digitalWrite(con.color,LOW);
-				delay(con.blinkSpeed);
-			}
 		}
 	}
 }
